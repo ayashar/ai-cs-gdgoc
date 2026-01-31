@@ -59,22 +59,19 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _runFilter() {
-    List<Map<String, dynamic>> results = [];
-    if (_searchController.text.isEmpty) {
-      results = _allMessages;
-    } else {
-      results = _allMessages
-          .where(
-            (msg) =>
-                msg["name"].toLowerCase().contains(
-                  _searchController.text.toLowerCase(),
-                ) ||
-                msg["message"].toLowerCase().contains(
-                  _searchController.text.toLowerCase(),
-                ),
-          )
-          .toList();
-    }
+    final query = _searchController.text.toLowerCase();
+    List<Map<String, dynamic>> results = _allMessages.where((msg) {
+      final matchesQuery =
+          query.isEmpty ||
+          msg["name"].toLowerCase().contains(query) ||
+          msg["message"].toLowerCase().contains(query);
+
+      final matchesCategory = _selectedCategory == "All Messages"
+          ? true
+          : (_selectedCategory == "Urgent" ? msg["isUrgent"] == true : true);
+
+      return matchesQuery && matchesCategory;
+    }).toList();
 
     setState(() {
       _filteredMessages = results;
@@ -116,7 +113,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 _buildSidebarItem(Icons.all_inbox, "All Messages"),
                 _buildSidebarItem(Icons.warning_amber_rounded, "Urgent"),
-                _buildSidebarItem(Icons.check_circle_outline, "Resolved"),
                 const Spacer(),
                 const Divider(color: Colors.white10),
                 _buildLogoutItem(context),
@@ -218,9 +214,12 @@ class _DashboardPageState extends State<DashboardPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: ListTile(
-        onTap: () => setState(() => _selectedCategory = title),
+        onTap: () {
+          setState(() => _selectedCategory = title);
+          _runFilter();
+        },
         selected: isSelected,
-        selectedTileColor: Colors.white.withValues(alpha: 0.1),
+        selectedTileColor: Colors.white.withValues(alpha: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         leading: Icon(
           icon,
@@ -255,7 +254,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        hoverColor: Colors.red.withValues(alpha: 0.1),
+        hoverColor: Colors.red.withValues(alpha: 10),
       ),
     );
   }
