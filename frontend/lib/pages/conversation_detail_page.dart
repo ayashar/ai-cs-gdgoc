@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import '../styles/app_colors.dart';
+import '../services/api_service.dart';
 
 class ConversationDetailPage extends StatefulWidget {
+  final int id;
   final String name;
   final String category;
   final String initialMessage;
 
   const ConversationDetailPage({
     super.key,
+    required this.id,
     required this.name,
     required this.category,
     required this.initialMessage,
@@ -21,15 +24,29 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
   final TextEditingController _messageController = TextEditingController();
   bool _isGenerating = false;
 
+  String _aiSummary = "Analyzing...";
+
+  void _loadAISummary() async {
+    final summary = await ApiService.getSummary(widget.id);
+    setState(() {
+      _aiSummary = summary;
+    });
+  }
+
   void _generateAIResponse() async {
     setState(() => _isGenerating = true);
-    await Future.delayed(const Duration(seconds: 2));
+    final suggestion = await ApiService.getSuggestReply(widget.id);
 
     setState(() {
       _isGenerating = false;
-      _messageController.text =
-          "Halo ${widget.name.split(' ')[0]}, mohon maaf atas kendalanya. Kami dari tim support Alex.ai sedang mengecek tiket ${widget.category} Anda.";
+      _messageController.text = suggestion;
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAISummary();
   }
 
   @override
