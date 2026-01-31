@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import '../styles/app_colors.dart';
+import '../services/api_service.dart';
 
 class ConversationDetailPage extends StatefulWidget {
+  final int id; // ID pesan/percakapan
   final String name;
   final String category;
   final String initialMessage;
 
   const ConversationDetailPage({
     super.key,
+    required this.id,
     required this.name,
     required this.category,
     required this.initialMessage,
@@ -19,17 +22,98 @@ class ConversationDetailPage extends StatefulWidget {
 
 class _ConversationDetailPageState extends State<ConversationDetailPage> {
   final TextEditingController _messageController = TextEditingController();
+  final ApiService _apiService = ApiService(); // 1. Panggil Service
+  
+  // State untuk menampung chat
+  List<Map<String, dynamic>> _messages = []; 
   bool _isGenerating = false;
+  bool _isSending = false;
+  String _aiSummary = "Analyzing content...";
 
+  @override
+  void initState() {
+    super.initState();
+    // Masukkan pesan awal dari customer ke list
+    _messages.add({
+      "text": widget.initialMessage,
+      "isMe": false,
+    });
+    
+    // Panggil fungsi untuk load summary (Opsional)
+    _loadAISummary();
+  }
+
+  // --- LOGIC 1: Minta Summary ke Gemini ---
+  void _loadAISummary() async {
+    // Note: Pastikan di ApiService ada fungsi getSummary
+    // Kalau belum ada, nanti akan return string default/error, tapi aman.
+    try {
+      // Kita pakai try-catch biar kalau endpoint belum siap, gak crash
+      // final summary = await _apiService.getSummary(widget.id); 
+      // setState(() => _aiSummary = summary);
+      
+      // SEMENTARA (Simulasi delay biar kelihatan mikir)
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        setState(() {
+          _aiSummary = "Customer seems frustrated about the ${widget.category}. Priority: High.";
+        });
+      }
+    } catch (e) {
+      print("Error summary: $e");
+    }
+  }
+
+  // --- LOGIC 2: Minta Saran Balasan (Draft) ke Gemini ---
   void _generateAIResponse() async {
     setState(() => _isGenerating = true);
-    await Future.delayed(const Duration(seconds: 2));
 
-    setState(() {
-      _isGenerating = false;
-      _messageController.text =
-          "Halo ${widget.name.split(' ')[0]}, mohon maaf atas kendalanya. Kami dari tim support Alex.ai sedang mengecek tiket ${widget.category} Anda.";
-    });
+    try {
+      // Panggil API backend endpoint /suggest-reply
+      final suggestion = await _apiService.suggestReply(widget.id);
+
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+          // Masukkan saran AI langsung ke kotak ketik
+          _messageController.text = suggestion; 
+        });
+      }
+    } catch (e) {
+      setState(() => _isGenerating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal generate AI: $e")),
+      );
+    }
+  }
+
+  // --- LOGIC 3: Kirim Pesan ---
+  void _handleSendMessage() async {
+    if (_messageController.text.isEmpty) return;
+
+    final content = _messageController.text;
+    setState(() => _isSending = true);
+
+    try {
+      // 1. Kirim ke Backend
+      await _apiService.sendMessage(content, widget.name);
+
+      // 2. Update UI (Tambah balon chat baru)
+      setState(() {
+        _messages.add({
+          "text": content,
+          "isMe": true, // Ini pesan kita (CS)
+        });
+        _messageController.clear(); // Bersihkan kotak ketik
+        _isSending = false;
+      });
+      
+    } catch (e) {
+      setState(() => _isSending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal kirim pesan: $e")),
+      );
+    }
   }
 
   @override
@@ -47,6 +131,7 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
       ),
       body: Row(
         children: [
+          // BAGIAN TENGAH: Chat Area
           Expanded(
             flex: 2,
             child: Column(
@@ -56,12 +141,14 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
               ],
             ),
           ),
+          // BAGIAN KANAN: AI Sidebar
           _buildAISidepanel(),
         ],
       ),
     );
   }
 
+  // ... Widget Sidebar AI ...
   Widget _buildAISidepanel() {
     return Container(
       width: 300,
@@ -80,13 +167,13 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
           ),
           const SizedBox(height: 20),
           _insightCard(
-            "Summary",
-            "Issues with ${widget.category.toLowerCase()} identified.",
+            "Quick Analysis",
+            _aiSummary, // Variabel dinamis
           ),
           const SizedBox(height: 12),
           _insightCard(
-            "Sentiment",
-            "Analyzing...",
+            "Detected Intent",
+            "Complaint / Refund Request", // Bisa didinamisin nanti
             color: AppColors.googleBlue,
           ),
           const Spacer(),
@@ -108,12 +195,15 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
                       strokeWidth: 2,
                     ),
                   )
-                : const Text(
-                    "Generate AI Draft",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.auto_awesome, size: 18),
+                      SizedBox(width: 8),
+                      Text("Generate AI Draft",
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
                   ),
           ),
         ],
@@ -134,11 +224,13 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 4),
           Text(
             content,
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: color ?? Colors.black87,
+              fontSize: 13,
             ),
           ),
         ],
@@ -159,7 +251,7 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
             child: TextField(
               controller: _messageController,
               decoration: InputDecoration(
-                hintText: "Type a message...",
+                hintText: "Type a message or use AI...",
                 filled: true,
                 fillColor: const Color(0xFFF0F2F5),
                 border: OutlineInputBorder(
@@ -170,9 +262,15 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
             ),
           ),
           const SizedBox(width: 12),
-          const CircleAvatar(
-            backgroundColor: AppColors.googleBlue,
-            child: Icon(Icons.send, color: Colors.white, size: 18),
+          // Tombol Kirim yang sekarang berfungsi
+          InkWell(
+            onTap: _isSending ? null : _handleSendMessage,
+            child: CircleAvatar(
+              backgroundColor: _isSending ? Colors.grey : AppColors.googleBlue,
+              child: _isSending 
+                  ? const Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(color: Colors.white))
+                  : const Icon(Icons.send, color: Colors.white, size: 18),
+            ),
           ),
         ],
       ),
@@ -184,10 +282,16 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
+        constraints: const BoxConstraints(maxWidth: 250),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isMe ? AppColors.googleBlue : const Color(0xFFF0F2F5),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: isMe ? const Radius.circular(16) : Radius.zero,
+            bottomRight: isMe ? Radius.zero : const Radius.circular(16),
+          ),
         ),
         child: Text(
           text,
@@ -198,16 +302,14 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
   }
 
   Widget _buildChatList() {
-    return ListView(
+    return ListView.builder(
       padding: const EdgeInsets.all(20),
-      children: [
-        _bubble(widget.initialMessage, false),
-
-        if (_isGenerating) _bubble("Alex.ai is analyzing the context...", true),
-
-        if (!_isGenerating && _messageController.text.isNotEmpty)
-          _bubble("Draft suggestion: ${_messageController.text}", true),
-      ],
+      itemCount: _messages.length,
+      itemBuilder: (context, index) {
+        final msg = _messages[index];
+        return _bubble(msg['text'], msg['isMe']);
+      },
     );
   }
 }
+
