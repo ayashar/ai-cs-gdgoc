@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../styles/app_colors.dart';
 import '../widgets/inbox_card.dart';
 import 'conversation_detail_page.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -14,48 +16,32 @@ class _DashboardPageState extends State<DashboardPage> {
   String _selectedCategory = "All Messages";
   final TextEditingController _searchController = TextEditingController();
 
-  final List<Map<String, dynamic>> _allMessages = [
-    {
-      "name": "Budi Setiawan",
-      "message": "Akun saya belum aktif padahal sudah bayar dari kemarin!",
-      "category": "Billing",
-      "sentiment": "Angry",
-      "time": "2m ago",
-      "isUrgent": true,
-    },
-    {
-      "name": "Siti Aminah",
-      "message": "Halo, saya tertarik dengan layanan AI ini untuk toko saya.",
-      "category": "Inquiry",
-      "sentiment": "Happy",
-      "time": "15m ago",
-      "isUrgent": false,
-    },
-    {
-      "name": "Andi Wijaya",
-      "message": "Apakah sudah support pembayaran via QRIS?",
-      "category": "Technical",
-      "sentiment": "Neutral",
-      "time": "1h ago",
-      "isUrgent": false,
-    },
-    {
-      "name": "Rina Permata",
-      "message": "Password saya tidak bisa di-reset, muncul error 404.",
-      "category": "Technical",
-      "sentiment": "Angry",
-      "time": "3h ago",
-      "isUrgent": true,
-    },
-  ];
-
+  List<Map<String, dynamic>> _allMessages = [];
   List<Map<String, dynamic>> _filteredMessages = [];
+
+  Future<void> fetchMessages() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://localhost:3000/api/messages'),
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          _allMessages = List<Map<String, dynamic>>.from(
+            json.decode(response.body)['data'],
+          );
+          _filteredMessages = _allMessages;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching data: $e");
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _filteredMessages = _allMessages;
-    _searchController.addListener(_runFilter);
+    fetchMessages(); // Panggil fungsi API
+    _searchController.addListener(_runFilter); // Pasang listener search
   }
 
   void _runFilter() {
@@ -186,19 +172,23 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 800),
                   child: InboxCard(
-                    name: msg["name"],
-                    message: msg["message"],
-                    category: msg["category"],
-                    sentiment: msg["sentiment"],
-                    time: msg["time"],
-                    isUrgent: msg["isUrgent"],
+                    name: msg["customer_name"] ?? "Unknown Customer",
+                    message: msg["content"] ?? "No message content",
+                    category: msg["category"] ?? "General",
+                    sentiment: msg["sentiment"] ?? "Neutral",
+                    time:
+                        msg["time"] ??
+                        "Just now", 
+                    isUrgent:
+                        msg["priority"] == "High" || (msg["isUrgent"] ?? false),
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => ConversationDetailPage(
-                          name: msg["name"],
-                          category: msg["category"],
-                          initialMessage: msg["message"],
+                          id: msg["id"] ?? 0,
+                          name: msg["customer_name"] ?? "Customer",
+                          category: msg["category"] ?? "General",
+                          initialMessage: msg["content"] ?? "",
                         ),
                       ),
                     ),
