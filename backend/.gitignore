@@ -1,0 +1,11 @@
+# Abaikan file Environment (Isinya API KEY RAHASIA)
+.env
+
+# Abaikan folder build/executable
+*.exe
+*.dll
+main
+
+# Abaikan folder system/IDE
+.vscode/
+.idea/
