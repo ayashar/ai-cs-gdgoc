@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../styles/app_colors.dart';
+import '../services/api_service.dart'; // Pastikan path ini benar
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -11,15 +12,41 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _apiService = ApiService(); // 1. Panggil Service
   bool _isLoading = false;
 
   void _handleLogin() async {
+    // Validasi input kosong
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email dan Password tidak boleh kosong')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
+
+    // 2. Tembak API Login
+    bool success = await _apiService.login(
+      _emailController.text, 
+      _passwordController.text
+    );
+
     setState(() => _isLoading = false);
 
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      if (success) {
+        // Login Sukses -> Masuk Dashboard
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else {
+        // Login Gagal -> Muncul Pesan Error
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login Gagal! Cek email/password Anda.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -76,7 +103,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -106,7 +132,13 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/register'),
+                  onPressed: () {
+                    // Pindah ke halaman Register
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const RegisterPage()),
+                    );
+                  },
                   child: const Text('Don\'t have an account? Sign Up'),
                 ),
               ],
@@ -118,12 +150,78 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class RegisterPage extends StatelessWidget {
+// ==========================================
+// REGISTER PAGE 
+// ==========================================
+class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
+
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
+}
+
+class _RegisterPageState extends State<RegisterPage> {
+  // Controller untuk ambil inputan user
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _apiService = ApiService();
+  bool _isLoading = false;
+
+  void _handleRegister() async {
+    if (_nameController.text.isEmpty || 
+        _emailController.text.isEmpty || 
+        _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Semua kolom harus diisi!')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // Tembak API Register
+    bool success = await _apiService.register(
+      _nameController.text,
+      _emailController.text,
+      _passwordController.text,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (mounted) {
+      if (success) {
+        // Sukses -> Muncul notif & Balik ke Login
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registrasi Berhasil! Silakan Login.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context); // Kembali ke Login Page
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registrasi Gagal. Email mungkin sudah dipakai.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text("Create Account")), // Biar ada tombol back
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -133,18 +231,21 @@ class RegisterPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
-                  Icons.support_agent,
+                  Icons.person_add,
                   size: 60,
                   color: AppColors.googleBlue,
                 ),
+                const SizedBox(height: 16),
                 Text(
-                  'Alex.ai',
-                  style: Theme.of(context).textTheme.displayLarge,
+                  'Join Alex.ai',
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
-                const Text('Create your account'),
                 const SizedBox(height: 32),
-                const TextField(
-                  decoration: InputDecoration(
+                
+                // INPUT NAMA
+                TextField(
+                  controller: _nameController, // <-- Bind Controller
+                  decoration: const InputDecoration(
                     labelText: 'Full Name',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -152,8 +253,11 @@ class RegisterPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const TextField(
-                  decoration: InputDecoration(
+                
+                // INPUT EMAIL
+                TextField(
+                  controller: _emailController, // <-- Bind Controller
+                  decoration: const InputDecoration(
                     labelText: 'Email',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -161,9 +265,12 @@ class RegisterPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const TextField(
+                
+                // INPUT PASSWORD
+                TextField(
+                  controller: _passwordController, // <-- Bind Controller
                   obscureText: true,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Password',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -171,6 +278,8 @@ class RegisterPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
+                
+                // TOMBOL REGISTER
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -182,11 +291,13 @@ class RegisterPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Register Now',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    onPressed: _isLoading ? null : _handleRegister,
+                    child: _isLoading 
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Register Now',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -202,3 +313,5 @@ class RegisterPage extends StatelessWidget {
     );
   }
 }
+
+

@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	jwtware "github.com/gofiber/jwt/v3"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
@@ -72,6 +73,15 @@ func main() {
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
 
+	api.Use(jwtware.New(jwtware.Config{
+		SigningKey: []byte(os.Getenv("JWT_SECRET")),
+		ErrorHandler: func(c *fiber.Ctx, err error) error{
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Unauthorized",
+				"message": "Invalid or expired token",
+			})
+		},
+	}))
 	// Message Routes
 	api.Post("/messages", messageHandler.CreateMessage)           // Ingest pesan baru (Simulasi Customer kirim pesan)
 	api.Get("/messages", messageHandler.GetMessages)              // Inbox List
