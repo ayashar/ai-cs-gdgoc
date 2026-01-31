@@ -14,15 +14,32 @@ class ApiService {
     return "Failed to load summary";
   }
 
-  static Future<String> getSuggestReply(int messageId) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/messages/$messageId/suggest-reply'),
-    );
-    if (response.statusCode == 200) {
-      return json.decode(response.body)['suggested_response'];
+  Future<String> suggestReply(int messageId) async {
+    try { 
+      final response = await http.post(
+        Uri.parse('$baseUrl/messages/$messageId/suggest-reply'),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body)['suggested_response'];
+      } 
+    } catch (e) {
+      print("Error suggest: $e");
     }
-    return "Failed to generate suggestion";
+    return "Error generating suggestion.";
   }
+
+  Future<void> sendMessage(String content, String customerName) async {
+    await http.post(
+      Uri.parse('$baseUrl/messages'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        "customer_name": customerName,
+        "content": content,
+        "role": "cs_agent" // Tandai bahwa ini balasan dari CS/Kita
+      }),
+    );
+  }
+
 
   // Instance method: Login
   Future<bool> login(String email, String password) async {
