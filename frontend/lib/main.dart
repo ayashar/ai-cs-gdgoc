@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'styles/app_colors.dart'; 
-import 'pages/auth_pages.dart'; 
-import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+import 'pages/auth_page.dart'; 
+import 'pages/dahboard_page.dart';
+
 
 void main() {
   usePathUrlStrategy();
@@ -21,7 +23,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor:
-              AppColors.googleBlue,
+              Colors.white,
         ),
         scaffoldBackgroundColor: Colors.white,
         textTheme: GoogleFonts.robotoTextTheme()
@@ -47,6 +49,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
+        '/dashboard': (context) => const DashboardPage(),
       },
     );
   }
