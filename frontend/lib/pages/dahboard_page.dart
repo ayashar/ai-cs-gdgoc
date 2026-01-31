@@ -4,6 +4,7 @@ import '../widgets/inbox_card.dart';
 import 'conversation_detail_page.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -37,11 +38,26 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  String _userName = "User";
+
+  String get _initial {
+    if (_userName.isEmpty) return "A";
+    return _userName[0].toUpperCase();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userName = prefs.getString('user_name') ?? "Admin";
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    fetchMessages(); // Panggil fungsi API
-    _searchController.addListener(_runFilter); // Pasang listener search
+    _loadUserData();
+    fetchMessages();
+    _searchController.addListener(_runFilter);
   }
 
   void _runFilter() {
@@ -49,12 +65,16 @@ class _DashboardPageState extends State<DashboardPage> {
     List<Map<String, dynamic>> results = _allMessages.where((msg) {
       final matchesQuery =
           query.isEmpty ||
-          msg["name"].toLowerCase().contains(query) ||
-          msg["message"].toLowerCase().contains(query);
+          (msg["customer_name"] ?? "").toLowerCase().contains(query) ||
+          (msg["content"] ?? "").toLowerCase().contains(query);
 
-      final matchesCategory = _selectedCategory == "All Messages"
-          ? true
-          : (_selectedCategory == "Urgent" ? msg["isUrgent"] == true : true);
+      bool matchesCategory = true;
+      if (_selectedCategory == "Urgent") {
+        matchesCategory =
+            msg["priority"] == "Tinggi" ||
+            msg["priority"] == "High" ||
+            (msg["isUrgent"] ?? false);
+      }
 
       return matchesQuery && matchesCategory;
     }).toList();
@@ -125,7 +145,7 @@ class _DashboardPageState extends State<DashboardPage> {
       height: 70,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color.fromARGB(255, 197, 197, 197),
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
@@ -150,10 +170,16 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
           const Spacer(),
-          const CircleAvatar(
+          CircleAvatar(
             backgroundColor: AppColors.googleBlue,
             radius: 18,
-            child: Text('A', style: TextStyle(color: Colors.white)),
+            child: Text(
+              _initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -176,11 +202,10 @@ class _DashboardPageState extends State<DashboardPage> {
                     message: msg["content"] ?? "No message content",
                     category: msg["category"] ?? "General",
                     sentiment: msg["sentiment"] ?? "Neutral",
-                    time:
-                        msg["time"] ??
-                        "Just now", 
+                    time: msg["time"] ?? "Just now",
                     isUrgent:
-                        msg["priority"] == "High" || (msg["isUrgent"] ?? false),
+                        msg["priority"] == "Tinggi" ||
+                        (msg["isUrgent"] ?? false),
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
