@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:3000/api';
@@ -32,7 +33,23 @@ class ApiService {
       body: json.encode({'email': email, 'password': password}),
     );
 
-    return response.statusCode == 200;
+    if (response.statusCode == 200) {
+      // 1. Ambil data dari response body
+      final Map<String, dynamic> data = json.decode(response.body);
+
+      // 2. Inisialisasi SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+
+      // 3. Simpan nama (sesuaikan key 'name' dengan JSON dari backend Go kamu)
+      // Biasanya di backend kamu: return c.JSON(fiber.Map{"user": user})
+      if (data['user'] != null && data['user']['name'] != null) {
+        await prefs.setString('user_name', data['user']['name']);
+      }
+
+      return true;
+    }
+
+    return false;
   }
 
   // Instance method: Register
@@ -43,6 +60,14 @@ class ApiService {
       body: json.encode({'name': name, 'email': email, 'password': password}),
     );
 
-    return response.statusCode == 201 || response.statusCode == 200;
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'user_name',
+        name,
+      ); // Simpan nama langsung dari input
+      return true;
+    }
+    return false;
   }
 }

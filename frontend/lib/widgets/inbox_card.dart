@@ -23,9 +23,9 @@ class InboxCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color sentimentColor = sentiment == 'Angry'
+    Color sentimentColor = sentiment == 'Frustrated' || sentiment == 'Kecewa'
         ? AppColors.googleRed
-        : (sentiment == 'Happy' ? AppColors.googleGreen : AppColors.googleYellow);
+        : (sentiment == 'Satisfied' || sentiment == 'Senang' ? AppColors.googleGreen : AppColors.googleYellow);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
