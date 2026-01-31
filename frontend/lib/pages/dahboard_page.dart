@@ -22,8 +22,20 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> fetchMessages() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      if (token == null) {
+        debugPrint("No auth token found. User not logged in.");
+        return;
+      }
+
       final response = await http.get(
         Uri.parse('http://localhost:3000/api/messages'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
       if (response.statusCode == 200) {
         setState(() {
@@ -32,6 +44,8 @@ class _DashboardPageState extends State<DashboardPage> {
           );
           _filteredMessages = _allMessages;
         });
+      } else {
+        debugPrint("Error: ${response.statusCode} - ${response.body}");
       }
     } catch (e) {
       debugPrint("Error fetching data: $e");

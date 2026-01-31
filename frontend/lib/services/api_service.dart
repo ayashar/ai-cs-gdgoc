@@ -5,9 +5,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const String baseUrl = 'http://localhost:3000/api';
 
+  // Get stored JWT token
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('auth_token');
+  }
+
+  // Build headers with Authorization bearer token
+  Future<Map<String, String>> _getHeaders() async {
+    final headers = {'Content-Type': 'application/json'};
+    final token = await _getToken();
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
+  }
+
   static Future<String> getSummary(int messageId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    final headers = {'Content-Type': 'application/json'};
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
     final response = await http.get(
       Uri.parse('$baseUrl/messages/$messageId/summary'),
+      headers: headers,
     );
     if (response.statusCode == 200) {
       return json.decode(response.body)['summary'];
@@ -16,75 +40,98 @@ class ApiService {
   }
 
   Future<String> suggestReply(int messageId) async {
-    try { 
+    try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/messages/$messageId/suggest-reply'),
+        headers: headers,
       );
       if (response.statusCode == 200) {
         return json.decode(response.body)['suggested_response'];
-      } 
+      }
     } catch (e) {
-      print("Error suggest: $e");
+      // Error generating suggestion
     }
     return "Error generating suggestion.";
   }
 
   Future<void> sendMessage(String content, String customerName) async {
+    final headers = await _getHeaders();
     await http.post(
       Uri.parse('$baseUrl/messages'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: json.encode({
         "customer_name": customerName,
         "content": content,
-        "role": "cs_agent" // Tandai bahwa ini balasan dari CS/Kita
+        "role": "cs_agent", // Tandai bahwa ini balasan dari CS/Kita
       }),
     );
   }
 
-
   // Instance method: Login
   Future<bool> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'email': email, 'password': password}),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'email': email, 'password': password}),
+      );
 
-    if (response.statusCode == 200) {
-      // 1. Ambil data dari response body
-      final Map<String, dynamic> data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        final prefs = await SharedPreferences.getInstance();
 
-      // 2. Inisialisasi SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-
-      // 3. Simpan nama (sesuaikan key 'name' dengan JSON dari backend Go kamu)
-      // Biasanya di backend kamu: return c.JSON(fiber.Map{"user": user})
-      if (data['user'] != null && data['user']['name'] != null) {
-        await prefs.setString('user_name', data['user']['name']);
+        if (data['user'] != null) {
+          await prefs.setString('user_name', data['user']['name'] ?? "");
+        }
+        if (data['token'] != null) {
+          await prefs.setString('auth_token', data['token']);
+          return true;
+        }
       }
-
-      return true;
+      return false;
+    } catch (e) {
+      return false;
     }
-
-    return false;
   }
 
   // Instance method: Register
   Future<bool> register(String name, String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'name': name, 'email': email, 'password': password}),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'name': name, 'email': email, 'password': password}),
+      );
 
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'user_name',
-        name,
-      ); // Simpan nama langsung dari input
-      return true;
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        final prefs = await SharedPreferences.getInstance();
+
+        if (data['user'] != null) {
+          await prefs.setString('user_name', data['user']['name'] ?? "");
+        }
+        if (data['token'] != null) {
+          await prefs.setString('auth_token', data['token']);
+        }
+        await prefs.setString('user_name', name);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
-    return false;
+  }
+
+  // Logout
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
+    await prefs.remove('user_name');
+  }
+
+  // Debug: Check if token is stored
+  Future<void> debugToken() async {
+    final token = await _getToken();
   }
 }

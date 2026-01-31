@@ -22,10 +22,10 @@ class ConversationDetailPage extends StatefulWidget {
 
 class _ConversationDetailPageState extends State<ConversationDetailPage> {
   final TextEditingController _messageController = TextEditingController();
-  final ApiService _apiService = ApiService(); // Panggil Service
-  
-  // State untuk menampung chat
-  List<Map<String, dynamic>> _messages = []; 
+  final ApiService _apiService = ApiService();
+
+  // State untuk menampung list chat agar bisa bertambah saat kirim pesan
+  final List<Map<String, dynamic>> _messages = [];
   bool _isGenerating = false;
   bool _isSending = false;
   String _aiSummary = "Analyzing content...";
@@ -33,28 +33,26 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
   @override
   void initState() {
     super.initState();
-    // Masukkan pesan awal dari customer ke list
-    _messages.add({
-      "text": widget.initialMessage,
-      "isMe": false,
-    });
-    
-    // Panggil fungsi untuk load summary
+    // Masukkan pesan awal dari customer ke list chat
+    _messages.add({"text": widget.initialMessage, "isMe": false});
+
+    // Panggil fungsi untuk load summary otomatis saat masuk
     _loadAISummary();
   }
 
   // --- LOGIC 1: Minta Summary ke Gemini ---
   void _loadAISummary() async {
     try {
-      // Panggil API summary (pastikan method getSummary ada di api_service.dart)
-      final summary = await _apiService.getSummary(widget.id); 
+      // Perbaikan: Panggil static method lewat Class ApiService
+      final summary = await ApiService.getSummary(widget.id);
       if (mounted) {
         setState(() {
           _aiSummary = summary;
         });
       }
     } catch (e) {
-      print("Error summary: $e");
+      debugPrint("Error summary: $e");
+      setState(() => _aiSummary = "Summary unavailable.");
     }
   }
 
@@ -63,22 +61,20 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
     setState(() => _isGenerating = true);
 
     try {
-      // Panggil API backend endpoint /suggest-reply
       final suggestion = await _apiService.suggestReply(widget.id);
 
       if (mounted) {
         setState(() {
           _isGenerating = false;
-          // Masukkan saran AI langsung ke kotak ketik
-          _messageController.text = suggestion; 
+          _messageController.text = suggestion;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isGenerating = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal generate AI: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Gagal generate AI: $e")));
       }
     }
   }
@@ -91,27 +87,22 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
     setState(() => _isSending = true);
 
     try {
-      // 1. Kirim ke Backend
+      // Kirim ke Backend
       await _apiService.sendMessage(content, widget.name);
 
-      // 2. Update UI (Tambah balon chat baru)
       if (mounted) {
         setState(() {
-          _messages.add({
-            "text": content,
-            "isMe": true, // Ini pesan kita (CS)
-          });
-          _messageController.clear(); // Bersihkan kotak ketik
+          _messages.add({"text": content, "isMe": true});
+          _messageController.clear();
           _isSending = false;
         });
       }
-      
     } catch (e) {
       if (mounted) {
         setState(() => _isSending = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal kirim pesan: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Gagal kirim pesan: $e")));
       }
     }
   }
@@ -148,7 +139,85 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
     );
   }
 
-  // ... Widget Sidebar AI ...
+  // --- UI WIDGETS ---
+
+  Widget _buildChatList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: _messages.length,
+      itemBuilder: (context, index) {
+        final msg = _messages[index];
+        return _bubble(msg["text"], msg["isMe"]);
+      },
+    );
+  }
+
+  Widget _bubble(String text, bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.4,
+        ),
+        decoration: BoxDecoration(
+          color: isMe ? AppColors.googleBlue : const Color(0xFFF0F2F5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(color: isMe ? Colors.white : Colors.black87),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputArea() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              decoration: InputDecoration(
+                hintText: "Type a message...",
+                filled: true,
+                fillColor: const Color(0xFFF0F2F5),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: _isSending ? null : _handleSendMessage,
+            child: CircleAvatar(
+              backgroundColor: AppColors.googleBlue,
+              child: _isSending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send, color: Colors.white, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAISidepanel() {
     return Container(
       width: 300,
@@ -166,14 +235,11 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
             ),
           ),
           const SizedBox(height: 20),
-          _insightCard(
-            "Quick Analysis",
-            _aiSummary, // Variabel dinamis
-          ),
+          _insightCard("Quick Analysis", _aiSummary),
           const SizedBox(height: 12),
           _insightCard(
             "Detected Intent",
-            widget.category, // Ambil dari kategori yang dikirim
+            widget.category,
             color: AppColors.googleBlue,
           ),
           const Spacer(),
@@ -197,6 +263,47 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> {
                   )
                 : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children
+                    children: [
+                      Icon(Icons.auto_awesome, size: 18, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        "Generate AI Draft",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
 
-
+  Widget _insightCard(String title, String content, {Color? color}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Text(
+            content,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color ?? Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
