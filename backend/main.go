@@ -60,11 +60,14 @@ func main() {
 	
 	// 7. API Routes (Selalu prioritaskan rute API di atas rute statis)
 	api := app.Group("/api")
+	
+	// Public Routes
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
 
-	// JWT Protected Routes
-	api.Use(jwtware.New(jwtware.Config{
+	// JWT Protected Routes (separate group with middleware)
+	protected := app.Group("/api")
+	protected.Use(jwtware.New(jwtware.Config{
 		SigningKey: []byte(os.Getenv("JWT_SECRET")),
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -74,11 +77,11 @@ func main() {
 		},
 	}))
 	
-	api.Post("/messages", messageHandler.CreateMessage)
-	api.Get("/messages", messageHandler.GetMessages)
-	api.Get("/messages/:id", messageHandler.GetMessageByID)
-	api.Get("/messages/:id/summary", messageHandler.GetSummary)
-	api.Post("/messages/:id/suggest-reply", messageHandler.SuggestReply)
+	protected.Post("/messages", messageHandler.CreateMessage)
+	protected.Get("/messages", messageHandler.GetMessages)
+	protected.Get("/messages/:id", messageHandler.GetMessageByID)
+	protected.Get("/messages/:id/summary", messageHandler.GetSummary)
+	protected.Post("/messages/:id/suggest-reply", messageHandler.SuggestReply)
 
 	// --- SERVE FLUTTER WEB ---
 
